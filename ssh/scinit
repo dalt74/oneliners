@@ -1,0 +1,145 @@
+#!/bin/bash
+
+xlog () { echo "$@" 1>&2 ; }
+die () { echo "$@" 1>&2 ; exit 1; }
+enough () { echo "$@" 1>&2 ; exit 0; }
+
+for cmd in socat ; do
+	[ "$(which socat 2>/dev/null)" = "" ] && die "The 'socat' command not found"
+done
+
+mode="$(echo "$1" | cut -f 1 -d :)"
+submode="$(echo "$1" | cut -f 2 -d :)"
+[ "$mode" = "start" ] && mode="load"
+[ "$mode" = "restart" ] && mode="reload"
+
+if [ "$mode" != "load" -a "$mode" != "reload" -a "$mode" != "stop" -a "$mode" != "shell" -a "$mode" != "exec" -a "$mode" != "kill" ] ; then
+	xlog "Usage: $0 <action> [ <command> ]"
+	xlog ""
+	xlog "   action ::= <mode>[:<target>]"
+	xlog "   mode ::= load | reload | stop"
+	xlog "   target ::= shell | exec"
+	xlog ""
+	xlog "   mode aliases:"
+	xlog "      start == load"
+	xlog "      restart == reload"
+	xlog "      kill == stop"
+	xlog ""
+	xlog "   action shortcuts:"
+	xlog "      shell == load:shell"
+	xlog "      exec == load:exec"
+	xlog "      rshell == reload:shell"
+	xlog "      rexec == reload:shell"
+	xlog "      kill == stop"
+	xlog ""
+	xlog "Examples:"
+	xlog "   $0 start"
+	xlog "   $0 stop"
+	xlog ""
+	xlog "   $0 load:exec ssh -A user@host"
+	xlog "   $0 exec ssh -A user@host"
+	xlog ""
+	xlog "   $0 load:shell"
+	xlog "   $0 shell"
+	die ""
+fi
+
+if [ "$mode" = "shell" ] ; then
+	mode="load"
+	submode="shell"
+elif [ "$mode" = "exec" ] ; then
+	mode="load"
+	submode="shell"
+elif [ "$mode" = "rshell" ] ; then
+	mode="reload"
+	submode="shell"
+elif [ "$mode" = "rexec" ] ; then
+	mode="reload"
+	submode="shell"
+elif [ "$mode" == "kill" ] ; then
+	mode="stop"
+	submode=""
+fi
+
+agent_name="$AGENT_NAME"
+[ "$agent_name" = "" ] && agent_name="default"
+
+if [ "$(uname)" = "Darwin" ] ; then
+	opensc="$(echo /usr/local/Cellar/opensc/*/lib/opensc-pkcs11.so | cut -f 1 -d " ")"
+	[ ! -e "$opensc" ] && opensc="$(echo /opt/homebrew/Cellar/opensc/*/lib/opensc-pkcs11.so | cut -f 1 -d " ")"
+elif [ "$(uname)" = "Linux" ] ; then
+	opensc="/usr/lib64/opensc-pkcs11.so"
+else
+	die "Unsupported platform: $(uname)"
+fi
+
+[ -f "$opensc" ] || die "Unable to find OpenSC at $opensc"
+
+if [ ! -d $HOME/.ssh ] ; then
+	mkdir -m 700 $HOME/.ssh || die "Error creating $HOME/.ssh"
+fi
+
+sock="$HOME/.ssh/agent-$agent_name-socket"
+envfile="$HOME/.ssh/agent-$agent_name-env"
+
+[ -e "$sock" -a ! -S "$sock" ] && die "File '$sock' exists and is not a socket"
+
+running=no
+has_keys=no
+if [ -S "$sock" ] ; then
+	if ! socat FILE:/dev/null "UNIX-CLIENT:$sock" 1>/dev/null 2>/dev/null ; then
+		rm -f "$sock" || die "Failed to remove socket '$sock', aborting"
+	else
+		running=yes
+		[ -f "$envfile" ] || die "Socket '$sock' is connected but envfile '$envfile' not found"
+		SSH_AGENT_PID=""
+		alias echo=true
+		. "$envfile"
+		unalias echo
+		[ "$SSH_AGENT_PID" != "" ] || die "No SSH_AGENT_PID in '$envfile' [1]"
+		[ "$SSH_AUTH_SOCK" == "$sock" ] || die "SSH_AUTH_SOCK value '$SSH_AUTH_SOCK' != '$sock' in '$envfile' [1]"
+		SSH_AUTH_SOCK="$sock" ssh-add -l 1>/dev/null && has_keys=yes
+	fi
+fi
+
+if [ "$running" = yes -a "$has_keys" != yes \
+  -o "$running" = "yes" -a "$mode" = "reload" \
+  -o "$running" = "yes" -a "$mode" = "stop" ]
+then
+	kill "$SSH_AGENT_PID" || die "Unable to stop running agent PID '$SSH_AGENT_PID'"
+	rm -f "$sock"
+	running=no
+	has_keys=no
+fi
+
+[ "$mode" = "stop" ] && enough "Agent is stopped"
+
+if [ "$running" = no ] ; then
+	agent_env="$(ssh-agent -a "$sock" -P "$opensc")"
+	[ "$?" != "0" ] && "Unable to start ssh-agent"
+	echo "$agent_env" | tr ";" "\n" | while read r ; do echo $r ; done | grep -v ^echo > "$envfile"
+fi
+
+alias echo=true
+. "$envfile"
+unalias echo
+[ "$SSH_AGENT_PID" != "" ] || die "No SSH_AGENT_PID in '$envfile' [2]"
+[ "$SSH_AUTH_SOCK" == "$sock" ] || die "SSH_AUTH_SOCK value '$SSH_AUTH_SOCK' != '$sock' in '$envfile' [2]"
+
+if [ "$has_keys" = "no" ] ; then
+	if ! SSH_AUTH_SOCK="$sock" ssh-add -s "$opensc" ; then
+		xlog "Token access error, killing agent"
+		kill "$SSH_AGENT_PID"
+		die "Unable to load keys for token"
+	else
+		xlog
+	fi
+fi
+
+echo "SSH_AUTH_SOCK="$sock" ; export SSH_AUTH_SOCK" ; export SSH_AUTH_SOCK
+if [ "$submode" = "shell" ] ; then
+	exec $SHELL -l
+elif [ "$submode" = "exec" ] ; then
+	shift
+	exec $@
+fi

@@ -1,0 +1,2 @@
+#!/bin/bash
+[ -f "/tmp/.vpn-$1-pid" ] && sudo kill $(cat "/tmp/.vpn-$1-pid") || echo "No VPN $1 found"

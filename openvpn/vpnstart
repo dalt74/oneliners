@@ -1,0 +1,9 @@
+#!/bin/bash
+pidfile="/tmp/.vpn-$1-pid"
+if [ -f "$pidfile" ] ; then
+    echo "VPN $1 pidfile found, exiting"
+    exit 1
+else
+    echo "No pidfile $pidfile found, starting"
+    sudo openvpn --config "$HOME/.vpn/$1" --writepid /tmp/.vpn-$1-pid --daemon
+fi
