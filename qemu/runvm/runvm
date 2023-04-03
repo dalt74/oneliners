@@ -1,0 +1,330 @@
+#!/bin/bash
+
+#
+# Default VM opts
+#
+need_sudo=""
+emulated=no
+vcpus=2
+ram=3G
+legacy_bios=no
+vnc_screen=1
+redirect_host_port=3001
+redirect_vm_port=22
+
+#
+# Default disks, networks and devices
+#
+storages="default_disk"
+default_disk_file="$vmroot/system.qcow2"
+default_disk_format="qcow2"
+default_disk_cache="none"
+default_disk_discard="unmap"
+default_disk_bootindex="0"
+
+networks="default_net"
+default_net_type="user"
+default_net_model="virtio"
+
+gui_video="ramfb"
+vnc_video="ramfb"
+
+#
+# Default CPU model
+#
+vcpumodel="host"
+
+if [ "$2" == "" ] ; then
+	echo "Usage: $0 <config> -gui|-console|-vnc [-b]" 1>&2
+	exit 1
+fi
+
+vmroot="$(dirname $(basename $1))"
+vmconfig="$1"
+[ "$vmroot" = "" -o "$vmroot" = "." ] && vmroot="$(pwd)"
+
+confdir="$(dirname "$vmconfig")"
+[ "$confdir" = "." ] && confdir="$(pwd)"
+
+host_os="$(uname)"
+host_arch="$(uname -m)"
+
+[ "$host_os" = "Darwin" -a "$host_arch" = "arm64" ] && host_arch="aarch64"
+
+[ -e "$vmconfig" ] && . "$vmconfig"
+
+[ "$default_net_opts" = "" ] && default_net_opts="hostfwd=tcp::$redirect_host_port-:$redirect_vm_port"
+
+[ "$vm_arch" = "" ] && vm_arch="$host_arch"
+
+if [ "$host_arch" = "$vm_arch" ] ; then
+	case "$host_os" in
+	"Darwin")
+		[ "$emulated" != "yes" ] && accel="-accel hvf"
+		[ "$host_arch" = "x86_64" ] && vcpumodel="Skylake-Client-v4"
+		hostos="macos"
+		;;
+	"Linux")
+		[ "$emulated" != "yes" ] && accel="-accel kvm"
+		hostos="linux"
+		;;
+	*)
+		if [ "$emulated" != "yes" ] ; then
+			echo "Unsupported host OS, use emulated=yes" 1>&2
+			exit 1
+		else
+			accel=""
+		fi
+		;;
+	esac
+fi
+
+case "$vm_arch" in
+x86_64)
+	platform="q35"
+	;;
+aarch64)
+	if [ "$host_os" = "Darwin" -a "$host_arch" = "aarch64" -a "$vm_arch" = "aarch64" -a "$emulated" != "yes" ] ; then
+		# aarch64 on macOS for Apple Silicon with HVF has a limitations
+		platform="virt,highmem=off"
+		[ "$cpumodel" = "" ] && vpcumodel="cortex-a72"
+	else
+		platform="virt"
+	fi
+	;;
+*)
+	echo "Unsupported VM arch: $vm_arch" 1>&2
+	exit 1
+	;;
+esac
+
+[ "$cpumodel" = "" ] && cpumodel="$vcpumodel"
+
+qemu="qemu-system-$vm_arch"
+share_files="$(dirname $(which $qemu))/../share"
+
+# QEMU can be in /usr with /bin -> /usr/bin
+# Handle here /bin location with care
+[ "$share_files" = "/bin/../share" ] && share_files="/usr/share"
+
+if [ "$vm_arch" != "x86_64" -o "$legacy_bios" != "yes" ] ; then
+	global_efi="$share_files/qemu-efi-$vm_arch/QEMU_EFI.fd"
+
+	if [ ! -e "$global_efi" ] ; then
+		global_efi="$share_files/qemu/edk2-$vm_arch-code.fd"
+	fi
+
+	if [ "$vm_arch" = "x86_64" ] ; then
+		global_efi="$share_files/qemu-efi/QEMU_EFI.fd"
+		[ ! -e "$global_efi" ] && global_efi="$share_files/edk2/ovmf/OVMF_CODE.fd"
+	fi
+	[ "$efi" = "" ] && efi="$global_efi"
+	efi_opts="-bios $efi"
+fi
+
+diskopts=""
+
+for disk in $storages ; do
+	v="$disk"_file
+	diskfile="${!v}"
+	fn_start="$(echo "$diskfile" | cut -b 1)"
+	[ "$fn_start" != "/" ] && diskfile="$confdir/$diskfile"
+
+	v="$disk"_format
+	format="${!v}"
+
+	v="$disk"_cache
+	cache="${!v}"
+
+	v="$disk"_discard
+	discard="${!v}"
+
+	v="$disk"_bootindex
+	bootindex="${!v}"
+
+	v="$disk"_type
+	type="${!v}"
+	[ "$type" = "" ] && type="virtio-blk"
+
+	diskopts="$diskopts -device $type,drive=$disk,serial=$disk"
+	[ "$bootindex" != "" ] && diskopts="$diskopts,bootindex=$bootindex"
+	diskopts="$diskopts -drive file=$diskfile,if=none,id=$disk"
+	[ "$format" != "" ] && diskopts="$diskopts,format=$format"
+	[ "$cache" != "" ] && diskopts="$diskopts,cache=$cache"
+	[ "$discard" != "" ] && diskopts="$diskopts,discard=$discard"
+done
+
+netopts=""
+
+for net in $networks ; do
+	v="$net"_type
+	netdevtype="${!v}"
+	[ "$netdevtype" = "" ] && netdevtype="user"
+
+	v="$net"_model
+	netdevmodel="${!v}"
+	[ "$netdevmodel" = "" ] && netdevmodel="virtio"
+	[ "$netdevmodel" = "virtio" ] && netdevmodel="virtio-net"
+
+	if [ "$netdevtype" = "user" ] ; then
+		v="$net"_opts
+		netdevopts="${!v}"
+	elif [ "$netdevtype" = "bridge" -a "$hostos" = "linux" ] ; then
+		need_sudo="sudo -n"
+		v="$net"_bridge
+		bridge_name="${!v}"
+		if [ "$bridge_name" = "" ] ; then
+			echo "Interface '$net' require "$net"_bridge=<bridge_if_name> option"
+			exit 1
+		fi
+		netdevtype="bridge"
+		netdevopts="br=$bridge_name"
+	elif [ "$netdevtype" = "host" -a "$hostos" = "macos" ] ; then
+		need_sudo="sudo -n"
+		v="$net"_mode
+		mode="${!v}"
+		v="$net"_ip_start
+		ip_start="${!v}"
+		v="$net"_ip_end
+		ip_end="${!v}"
+		v="$net"_ip_mask
+		ip_mask="${!v}"
+		v="$net"_uuid
+		netuuid="${!v}"
+		if [ "$mode" = "vm-only" ] ; then
+			netdevtype="vmnet-host"
+			netdevopts="isolated=on,uuid="$(uuidgen | tr [A-Z] [a-z])
+		elif [ "$mode" = "vms-only" ] ; then
+			if [ "$netuuid" = "" ] ; then
+				echo "Internal network $net requires "$net"_uuid=<value>"
+				exit 1
+			fi
+			netdevtype="vmnet-host"
+			netdevopts="uuid=$netuud"
+		elif [ "$mode" = "host-only" -o "$mode" = "nat" ] ; then
+			if [ "$ip_start" = "" -o "$ip_end" = "" -o "$ip_mask" = "" ] ; then
+				echo "Interface '$net' require "$net"_ip_start, "$net"_ip_end and "$net"_ip_mask options"
+				exit 1
+			fi
+			netdevtype="vmnet-host"
+			[ "$mode" = "nat" ] && netdevtype="vmnet-shared"
+			netdevopts="start-address=$ip_start,end-address=$ip_end,subnet-mask=$ip_mask"
+		elif [ "$mode" = "bridge" ] ; then
+			v="$net"_backend
+			backend_dev="${!v}"
+			if [ "$backend_dev" = "" ] ; then
+				echo "Interface '$net' requires "$net"_backend=<physical_device>"
+				exit 1
+			fi
+			netdevtype="vmnet-bridged"
+			netdevopts="ifname=$backend_dev"
+		else
+			echo "Unsupported "$net"_mode=$mode, must be one of nat | private | internal | isolated"
+			exit 1
+		fi
+	else
+		echo "Unsupported network device type"
+		echo "The only supported are:"
+		echo "   user  => usermode device with host port redirections"
+		if [ "$hostos" = "linux" ] ; then
+			echo "   bridge  => attach vm net to existing host bridge"
+			echo "              opts: <name>_bridge  => bridge interface to attach"
+		elif [ "$hostos" = "macos" ] ; then
+			echo "   host => attach vm to virtual host interfaces"
+			echo "           opts: <name>_ip_start"
+			echo "                 <name>_ip_end"
+			echo "                 <name>_ip_mask"
+			echo "                 <name>_mode = vm-only | vms-only | host-only | nat | bridge"
+			echo "                 <name>_backend = <physical_device>"
+		fi
+		exit 1
+	fi
+
+	v="$net"_mac
+	netmac="${!v}"
+
+	netopts="$netopts -device $netdevmodel,netdev=$net"
+	[ "$netmac" != "" ] && netopts="$netopts,mac=$netmac"
+	netopts="$netopts -netdev $netdevtype,id=$net"
+	[ "$netdevopts" != "" ] && netopts="$netopts,$netdevopts"
+done
+
+if [ "$serial_ports" != "" ] ; then
+	serialopts="-device virtio-serial-pci,id=vioser0"
+	nr=1
+	for sp in $serial_ports ; do
+		v="$sp"_backend
+		portbackend="${!v}"
+		v="$sp"_portname
+		portname="${!v}"
+		[ "$portname" = "" ] && portname="$sp"
+		if [ "$portbackend" = "unix-socket" ] ; then
+			v="$sp"_sockpath
+			sockpath="${!v}"
+			[ "$sockpath" = "" ] && sockpath="$vmroot/.$vmconfig-serial-$portname"
+			serialopts="$serialopts -device virtserialport,bus=vioser0.0,nr=$nr,chardev=charchannel$nr,id=channel$nr,name=quickemu.$portname"
+			serialopts="$serialopts -chardev socket,id=charchannel$nr,path=$sockpath,server=on,wait=off"
+		elif [ "$portbackend" = "chardev" ] ; then
+			v="$sp"_filepath
+			filepath="${!v}"
+			if [ "$filepath" = "" ] ; then
+				echo "Missing $v value"
+				exit 1
+			fi
+			serialopts="$serialopts -device virtserialport,bus=vioser0.0,nr=$nr,chardev=charchannel$nr,id=channel$nr,name=quickemu.$portname"
+			serialopts="$serialopts -chardev serial,id=charchannel$nr,path=$sockpath"
+		elif [ "$portbackend" = "null" ] ; then
+			serialopts="$serialopts -device virtserialport,bus=vioser0.0,nr=$nr,chardev=charchannel$nr,id=channel$nr,name=quickemu.$portname"
+			serialopts="$serialopts -chardev null,id=charchannel$nr"
+		else
+			echo "Invalid serial port backend $v=$portbackend, must be unix-socke|chardev|null"
+			exit 1
+		fi
+		nr=$(expr $nr + 1)
+	done
+fi
+
+shift
+
+if echo $@ | grep -qw -- -gui ; then
+    ui_opts="
+        -device qemu-xhci
+        -device usb-kbd
+        -device usb-tablet
+        -device $gui_video
+        -device intel-hda
+        -device hda-output
+        -device hda-duplex"
+elif echo $@ | grep -qw -- -vnc ; then
+    ui_opts="
+        -device qemu-xhci
+        -device usb-kbd
+        -device $vnc_video
+        -device usb-tablet
+        -display vnc=:$vnc_screen"
+elif echo $@ | grep -wq -- -console ; then
+    ui_opts="-nographic"
+else
+    echo "Usage: $0 <config> -gui|-vnc|-console [-b]" 1>&2
+    exit 1
+fi
+
+if echo $@ | grep -wq -- "--background\|-b" ; then
+	cmd="$debug $qemu
+		-M $platform $accel
+		-cpu $cpumodel
+		-smp $vcpus
+		-m $ram
+		-rtc base=localtime,clock=host
+		$efi_opts $diskopts $netopts $serialopts $ui_opts $extras"
+	nohup $need_sudo $cmd 2>/dev/null 1>/dev/null &
+else
+	cmd="$debug $(which $qemu)
+		-M $platform $accel
+		-cpu $cpumodel
+		-smp $vcpus
+		-m $ram
+		-rtc base=localtime,clock=host
+		$efi_opts $diskopts $netopts $serialopts $ui_opts $extras"
+	exec $need_sudo $cmd
+fi

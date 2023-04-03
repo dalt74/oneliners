@@ -1,0 +1,152 @@
+#
+# Пример конфигурационного файла виртуальной машины
+#
+
+#
+# Дисплей VNC, используется только в случае указания опции -vnc
+# Используется только если включено VNC
+vnc_screen=1
+
+#
+# Количество RAM
+# Не ставьте больше 4G на ARM M1 в режиме HVF
+#
+ram=3G
+
+#
+# Порты для проброса в режиме usernet (user-mode networking)
+#
+redirect_host_port=3001		# Порт для входящих соединение в режиме usernet
+redirect_vm_port=22		# Порт ВМ на который делается проброс
+
+#
+# Архитектура гостевой ВМ. По умолчанию совпадает с хостовой
+#
+# vm_arch=x86_64
+
+#
+# EFI или BIOS
+# no == использовать EFI (по умолчанию)
+# yes == использовать BIOS
+#
+legacy_bios=no
+
+#
+# Модель процессора.
+# Лучше не трогать если всё работает - тогда всё само определится
+#
+# Пример переопределения:
+# cpumodel=qemu64
+#
+
+#
+# Подключенные диски. Для каждого диска позже определятся параметры
+# Туту перечислены три диска - boot_disk, data_disk и cdrom
+#
+storages="boot_disk data_disk cdrom"
+
+#
+# Параметры для диска boot_disk
+# в $confdir содержится имя каталога в котором лежал конфиг ВМ
+# так что можно использовать относительные пути и пути через . или ..
+#
+# Параметры:
+# ***_file - путь к файлу
+# ***_format - формат, raw|vmdk|vhd|qcow2
+# ***_cache - кэш, none|writeback|writethrough
+# ***_bootindex - приоритет загрузки (int)
+# ***_type - типа диска, virtio-blk|nvme|ide-cd
+# ***_dicard - реализация trim, discard|ignore
+#
+boot_disk_file="$confdir/system.raw"
+boot_disk_format=raw
+boot_disk_cache=none
+boot_disk_bootindex=0
+boot_disk_discard=unmap
+boot_disk_type=virtio-blk
+
+#
+# Если каталог не указан - ищется файл в каталоге где лижит конфиг ВМ
+#
+data_disk_file="vdb.qcow2"
+boot_disk_format=qcow2
+boot_disk_type=virtio-blk
+
+#
+# Абсолютные пути тоже поддерживаются
+#
+cdrom_file="/tmp/downloads/mylinux.iso"
+cdrom_format=raw
+cdrom_cache=none
+cdrom_bootindex=1
+cdrom_type=ide-cd
+
+#
+# Сетевые адаптеры, перечисляются тут через пробел
+#
+networks="default_net"
+
+#
+# параметры адаптера default_net
+#
+
+#
+# Тип сети:
+# ***_type=...
+#
+# Поддерживаемые типы сетей:
+#
+# Все платформы:
+# user - user-mode network, только TCP/UDP и проброс портов, работает везде, root не нужен
+#
+# Только Linux:
+# ***_type=bridge - присоединить этот сеевой адаптер в хостовый бридж (нужен root/su)
+# Имя бриджа указывается в переменной ***_bridge, например
+# default_net_bridge=br0
+#
+# Только MacOS
+# ***_type=host - хостовая сеть MacOS (нужен root/sudo).
+# Нужно указать режим сети и параметры
+#
+# ***_mode=vm-only - изолированная сеть только для этой ВМ
+# ***_uuid=<uuid> - опциональный параметр, UUID сети
+#
+# ***_mode=vms-only - выделенная сеть для нескольких ВМ
+# ***_uuid=<uuid> - обязательный параметр, UUID сети
+#
+# ***_mode=host-only - выделенная сеть для нескольких ВМ и хоста
+# Требуется указать начало и конец диапазона выделяемых IP и маску подсети
+# ***_ip_start=<a.b.c.d>
+# ***_ip_end=<e.f.g.h>
+# ***_ip_mask=<w.x.y.z>
+#
+# ***_mode=nat - выделенная сеть для нескольких ВМ и хоста с маршрутизацие наружу через NAT
+# Требуется указать начало и конец диапазона выделяемых IP и маску подсети
+# ***_ip_start=<a.b.c.d>
+# ***_ip_end=<e.f.g.h>
+# ***_ip_mask=<w.x.y.z>
+#
+# ***_mode=bridge - бридж с физическим интерфейсом
+# ***_backend=<ifname> - обязательный параметр, имя устройства с которым бриджится ВМ
+#
+default_net_type=user							# or bridge etc
+default_net_model=virtio						# or e1000k
+default_net_mac="52:54:00:12:34:56"					# or empty to auto-generate
+default_net_opts="hostfwd=tcp::$redirect_host_port-:$redirect_vm_port"
+
+#
+# Последовательные порты
+#
+serial_ports="port1 port2"
+
+#
+# Параметры порта port1
+#
+# Имя презентуемое в ВМ. По умолчанию берется имя порта
+port1_portname="port1"
+
+#
+# Сокет связанный с этим портом
+# По умолчанию "$confdir/.%vmname-serial-%portname"
+#
+port1_sockpath="$confdir/.config.sample-serial-port1"
