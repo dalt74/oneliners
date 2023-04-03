@@ -1,0 +1,50 @@
+#
+# Пример конфигурационного файла виртуальной машины.
+#
+# Как запустить:
+#
+# 1. Скопировать этот файл:
+#    $ cp any-linux your-vm-name
+# 2. Используя qemu-img создать виртуальный диск
+#    $ qeu-img create --size 128G linux-vda.qcow2
+# 3. Исправить cdrom_file указав в нем путь к образу дистрибутива
+# 4. Запустить ВМ командой
+#    $ runvm your-vm-name -gui
+# 5. Установить Linux внутри ВМ
+#
+# Не требуется root, работает в MacOS (ARM, x86) и Linux
+# Использует механизмы виртуализации поддерживаемые операционной системой
+# Доступ к ВМ после установки: ssh -p 3001 root@127.0.0.1
+#
+# Запустить в фоне в headless режиме в фоне:
+# $ runvm your-vm-name -vnc -b
+#
+vnc_screen=1
+vcpus=2
+ram=3G
+redirect_host_port=3001
+redirect_vm_port=22
+
+legacy_bios=no
+
+storages="nvme0 cdrom"
+
+nvme0_file="linux-vda.qcow2"
+nvme0_format=qcow2
+nvme0_cache=none
+nvme0_bootindex=0
+nvme0_discard=unmap
+nvme0_type=nvme
+
+cdrom_file="linux-install.iso"
+cdrom_format=raw
+cdrom_cache=none
+cdrom_bootindex=1
+cdrom_type=ide-cd
+
+networks="uplink"
+
+uplink_type=user
+uplink_model=virtio
+uplink_mac="52:54:00:12:34:56"
+uplink_opts="hostfwd=tcp::$redirect_host_port-:$redirect_vm_port"

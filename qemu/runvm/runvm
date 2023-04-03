@@ -277,7 +277,7 @@ if [ "$serial_ports" != "" ] ; then
 			serialopts="$serialopts -device virtserialport,bus=vioser0.0,nr=$nr,chardev=charchannel$nr,id=channel$nr,name=quickemu.$portname"
 			serialopts="$serialopts -chardev null,id=charchannel$nr"
 		else
-			echo "Invalid serial port backend $v=$portbackend, must be unix-socke|chardev|null"
+			echo "Invalid serial port backend $v=$portbackend, must be unix-socket|chardev|null"
 			exit 1
 		fi
 		nr=$(expr $nr + 1)

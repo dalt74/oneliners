@@ -14,6 +14,18 @@ vnc_screen=1
 ram=3G
 
 #
+# Разрешить или нет эмуляцию процессора
+#
+# emulated=no
+# no - запретить, использовать поддержку виртуализации хоста
+# yes - разрешить (может быть медленно!)
+
+#
+# Количество виртуальных процессоров
+#
+# vcpus=2
+
+#
 # Порты для проброса в режиме usernet (user-mode networking)
 #
 redirect_host_port=3001		# Порт для входящих соединение в режиме usernet
@@ -69,8 +81,8 @@ boot_disk_type=virtio-blk
 # Если каталог не указан - ищется файл в каталоге где лижит конфиг ВМ
 #
 data_disk_file="vdb.qcow2"
-boot_disk_format=qcow2
-boot_disk_type=virtio-blk
+data_disk_format=qcow2
+data_disk_type=virtio-blk
 
 #
 # Абсолютные пути тоже поддерживаются
@@ -133,6 +145,15 @@ default_net_type=user							# or bridge etc
 default_net_model=virtio						# or e1000k
 default_net_mac="52:54:00:12:34:56"					# or empty to auto-generate
 default_net_opts="hostfwd=tcp::$redirect_host_port-:$redirect_vm_port"
+
+#
+# Видеоадаптер для графического режима и для режима VNC
+#
+# Допустимы значения любого видеоадаптера поддерживаемого QEMU
+# например: cirrus-vga, vmware-svga, virtio-gpu-pci, ati-vga, ramfb
+#
+gui_video="ramfb"
+vnc_video="ramfb"
 
 #
 # Последовательные порты
