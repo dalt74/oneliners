@@ -26,9 +26,6 @@ networks="default_net"
 default_net_type="user"
 default_net_model="virtio"
 
-gui_video="ramfb"
-vnc_video="ramfb"
-
 #
 # Default CPU model
 #
@@ -82,6 +79,8 @@ fi
 case "$vm_arch" in
 x86_64)
 	platform="q35"
+	[ "$gui_video" = "" ] && gui_video="vmware-svga"
+	[ "$vnc_video" = "" ] && vnc_video="vmware-svga"
 	;;
 aarch64)
 	if [ "$host_os" = "Darwin" -a "$host_arch" = "aarch64" -a "$vm_arch" = "aarch64" -a "$emulated" != "yes" ] ; then
@@ -91,6 +90,8 @@ aarch64)
 	else
 		platform="virt"
 	fi
+	[ "$gui_video" = "" ] && gui_video="ramfb"
+	[ "$vnc_video" = "" ] && vnc_video="ramfb"
 	;;
 *)
 	echo "Unsupported VM arch: $vm_arch" 1>&2
