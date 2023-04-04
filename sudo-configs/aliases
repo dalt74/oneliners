@@ -1,0 +1,2 @@
+Cmnd_Alias	VPN = /usr/sbin/openvpn, /bin/kill
+Cmnd_Alias	QEMU = /usr/bin/qemu-system-aarch64, /usr/bin/qemu-system-x86_64
