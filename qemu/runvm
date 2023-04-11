@@ -55,25 +55,29 @@ host_arch="$(uname -m)"
 [ "$vm_arch" = "" ] && vm_arch="$host_arch"
 
 if [ "$host_arch" = "$vm_arch" ] ; then
-	case "$host_os" in
-	"Darwin")
-		[ "$emulated" != "yes" ] && accel="-accel hvf"
-		[ "$host_arch" = "x86_64" ] && vcpumodel="Skylake-Client-v4"
-		hostos="macos"
-		;;
-	"Linux")
-		[ "$emulated" != "yes" ] && accel="-accel kvm"
-		hostos="linux"
-		;;
-	*)
-		if [ "$emulated" != "yes" ] ; then
-			echo "Unsupported host OS, use emulated=yes" 1>&2
-			exit 1
-		else
-			accel=""
-		fi
-		;;
-	esac
+	if [ "$accel_driver" != "" ] ; then
+		accel="-accel $accel_driver"
+	else
+		case "$host_os" in
+		"Darwin")
+			hostos="macos"
+			[ "$emulated" != "yes" ] && accel="-accel hvf"
+			[ "$host_arch" = "x86_64" ] && vcpumodel="Skylake-Client-v4"
+			;;
+		"Linux")
+			hostos="linux"
+			[ "$emulated" != "yes" ] && accel="-accel kvm"
+			;;
+		*)
+			if [ "$emulated" != "yes" ] ; then
+				echo "Unsupported host OS, use emulated=yes" 1>&2
+				exit 1
+			else
+				accel=""
+			fi
+			;;
+		esac
+	fi
 fi
 
 case "$vm_arch" in
@@ -86,7 +90,7 @@ aarch64)
 	if [ "$host_os" = "Darwin" -a "$host_arch" = "aarch64" -a "$vm_arch" = "aarch64" -a "$emulated" != "yes" ] ; then
 		# aarch64 on macOS for Apple Silicon with HVF has a limitations
 		platform="virt,highmem=off"
-		[ "$cpumodel" = "" ] && vpcumodel="cortex-a72"
+		[ "$cpumodel" = "" ] && vcpumodel="cortex-a72"
 	else
 		platform="virt"
 	fi
@@ -128,8 +132,6 @@ diskopts=""
 for disk in $storages ; do
 	v="$disk"_file
 	diskfile="${!v}"
-	fn_start="$(echo "$diskfile" | cut -b 1)"
-	[ "$fn_start" != "/" ] && diskfile="$confdir/$diskfile"
 
 	v="$disk"_format
 	format="${!v}"
@@ -143,16 +145,36 @@ for disk in $storages ; do
 	v="$disk"_bootindex
 	bootindex="${!v}"
 
+	v="$disk"_readonly
+	readonly="${!v}"
+
+	v="$disk"_removable
+	removable="${!v}"
+
+	v="$disk"_media
+	media="${!v}"
+
 	v="$disk"_type
 	type="${!v}"
 	[ "$type" = "" ] && type="virtio-blk"
 
 	diskopts="$diskopts -device $type,drive=$disk,serial=$disk"
 	[ "$bootindex" != "" ] && diskopts="$diskopts,bootindex=$bootindex"
-	diskopts="$diskopts -drive file=$diskfile,if=none,id=$disk"
+	[ "$removable" != "" ] && diskopts="$diskopts,removable=$removable"
+	if [ "$diskfile" != "" ] ; then
+		fn_start="$(echo "$diskfile" | cut -b 1)"
+		[ "$fn_start" != "/" ] && diskfile="$confdir/$diskfile"
+		diskopts="$diskopts -drive file=$diskfile,if=none,id=$disk"
+	elif [ "$media" = "cdrom" ] ; then
+		diskopts="$diskopts -drive if=none,id=$disk"
+	else
+		echo "Non-CDROM media requires file ""$disk""_type to be set"
+	fi
 	[ "$format" != "" ] && diskopts="$diskopts,format=$format"
 	[ "$cache" != "" ] && diskopts="$diskopts,cache=$cache"
 	[ "$discard" != "" ] && diskopts="$diskopts,discard=$discard"
+	[ "$media" != "" ] && diskopts="$diskopts,media=$media"
+	[ "$readonly" != "" ] && diskopts="$diskopts,readonly=$readonly"
 done
 
 netopts=""
@@ -311,21 +333,21 @@ else
 fi
 
 if echo $@ | grep -wq -- "--background\|-b" ; then
-	cmd="$debug $qemu
+	cmd="$need_sudo $qemu
 		-M $platform $accel
 		-cpu $cpumodel
 		-smp $vcpus
 		-m $ram
 		-rtc base=localtime,clock=host
 		$efi_opts $diskopts $netopts $serialopts $ui_opts $extras"
-	nohup $need_sudo $cmd 2>/dev/null 1>/dev/null &
+	nohup $debug $cmd $extra_opts 2>/dev/null 1>/dev/null &
 else
-	cmd="$debug $(which $qemu)
+	cmd="$need_sudo $(which $qemu)
 		-M $platform $accel
 		-cpu $cpumodel
 		-smp $vcpus
 		-m $ram
 		-rtc base=localtime,clock=host
 		$efi_opts $diskopts $netopts $serialopts $ui_opts $extras"
-	exec $need_sudo $cmd
+	exec $debug $cmd $extra_opts
 fi

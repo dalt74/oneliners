@@ -69,6 +69,9 @@ storages="boot_disk data_disk cdrom"
 # ***_bootindex - приоритет загрузки (int)
 # ***_type - типа диска, virtio-blk|nvme|ide-cd
 # ***_dicard - реализация trim, discard|ignore
+# ***_media - тип устройтва, disk|cdrom
+# ***_removable - отключаемое устройство, on|off
+# ***_readonly - возможна запись или нет, on|off
 #
 boot_disk_file="$confdir/system.raw"
 boot_disk_format=raw
@@ -92,6 +95,19 @@ cdrom_format=raw
 cdrom_cache=none
 cdrom_bootindex=1
 cdrom_type=ide-cd
+cdrom_media=cdrom
+cdrom_readonly=on
+
+#
+# Отключаемые устройства - removable
+#
+usbdisk_file="/tmp/downloads/myusb-image.raw"
+usbdisk_format=raw
+usbdisk_cache=none
+usbdisk_bootindex=2
+usbdisk_type=usb-storage
+usbdisk_media=disk
+usbdisk_removable=disk
 
 #
 # Сетевые адаптеры, перечисляются тут через пробел
