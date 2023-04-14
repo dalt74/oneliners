@@ -192,7 +192,7 @@ for net in $networks ; do
 	if [ "$netdevtype" = "user" ] ; then
 		v="$net"_opts
 		netdevopts="${!v}"
-	elif [ "$netdevtype" = "bridge" -a "$hostos" = "linux" ] ; then
+	elif [ "$netdevtype" = "host" -a "$hostos" = "linux" ] ; then
 		need_sudo="sudo -n"
 		v="$net"_bridge
 		bridge_name="${!v}"
@@ -250,7 +250,7 @@ for net in $networks ; do
 		echo "The only supported are:"
 		echo "   user  => usermode device with host port redirections"
 		if [ "$hostos" = "linux" ] ; then
-			echo "   bridge  => attach vm net to existing host bridge"
+			echo "   host => attach vm net to existing host bridge"
 			echo "              opts: <name>_bridge  => bridge interface to attach"
 		elif [ "$hostos" = "macos" ] ; then
 			echo "   host => attach vm to virtual host interfaces"
