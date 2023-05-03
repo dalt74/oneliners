@@ -106,6 +106,25 @@ esac
 [ "$cpumodel" = "" ] && cpumodel="$vcpumodel"
 
 qemu="qemu-system-$vm_arch"
+if ! which $qemu ; then
+	if [ "$host_arch" = "$vm_arch" -a "$host_arch" = "x86_64" ] ; then
+		for qemu in /usr/libexec/qemu-kvm /usr/libexec/qemu-kvm-ev UNKNOWN ; do
+			if [ -x "$qemu" ] ; then
+				break
+			fi
+		done
+		if [ "$qemu" = "UNKNOWN" ] ; then
+			echo "Unable to find qemu-system-$vm_arch nor qemu-kvm nor qemu-kvm-ev" 1>&2
+			exit 1
+		fi
+		redhat_qemu="yes"
+		[ "$gui_video" = "vmware-svga" ] && gui_video="VGA"
+		[ "$vnc_video" = "vmware-svga" ] && vnc_video="VGA"
+	else
+		echo "Unable to find qemu-system-$vm_arch for host $host_arch" 1>&2
+		exit 1
+	fi
+fi
 share_files="$(dirname $(which $qemu))/../share"
 
 # QEMU can be in /usr with /bin -> /usr/bin
@@ -123,8 +142,31 @@ if [ "$vm_arch" != "x86_64" -o "$legacy_bios" != "yes" ] ; then
 		global_efi="$share_files/qemu-efi/QEMU_EFI.fd"
 		[ ! -e "$global_efi" ] && global_efi="$share_files/edk2/ovmf/OVMF_CODE.fd"
 	fi
+
 	[ "$efi" = "" ] && efi="$global_efi"
-	efi_opts="-bios $efi"
+
+	if [ "$redhat_qemu" = "yes" ] ; then
+		efi_opts="-drive if=pflash,format=raw,readonly=on,file=$efi"
+		efi_dir=$(dirname $efi)
+		if [ "$private_efi_vars" = "yes" -o "$efi_vars" != "" ] ; then
+			vars_readonly="off"
+			if [ "$efi_vars" = "" ] ; then
+				efi_vars="$vmconfig-efi"
+			fi
+			if [ ! -f "$efi_vars" ] ; then
+				if ! cp "$efi_dir/OVMF_VARS.fd" "$efi_vars" ; then
+					echo "Failed to initialize EFI vars file $efi_dir/OVMF_VARS.fd => $efi_vars" 1>&2
+					exit 1
+				fi
+			fi
+		else
+			efi_vars="$efi_dir/OVMF_VARS.fd"
+			vars_readonly="on"
+		fi
+    	efi_opts="-drive if=pflash,format=raw,readonly=$vars_readonly,file=$efi_dir/OVMF_VARS.fd"
+	else
+		efi_opts="-bios $efi"
+	fi
 fi
 
 diskopts=""
@@ -330,6 +372,10 @@ elif echo $@ | grep -wq -- -console ; then
 else
     echo "Usage: $0 <config> -gui|-vnc|-console [-b]" 1>&2
     exit 1
+fi
+
+if [ "$vnc_screen" != "" ] ; then
+	echo "VNC screen $vnc_screen"
 fi
 
 if echo $@ | grep -wq -- "--background\|-b" ; then
