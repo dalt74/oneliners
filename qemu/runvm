@@ -143,12 +143,12 @@ global_efis="$share_files/qemu-efi/QEMU_EFI.fd
 	$share_files/qemu/OVMF.fd"
 
 if [ "$vm_arch" != "x86_64" -o "$legacy_bios" != "yes" ] ; then
-	for global_efi in $arch_efis ; do
+	for global_efi in $global_efis ; do
 		[ -e "$global_efi" ] && break
 	done
 
 	if [ "$vm_arch" = "x86_64" -a ! -e "$global_efi" ] ; then
-		for global_efi in $global_efis ; do
+		for global_efi in $arch_efis ; do
 			[ -e "$global_efi" ] && break
 		done
 	fi
