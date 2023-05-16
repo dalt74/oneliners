@@ -37,6 +37,7 @@ if [ "$2" == "" ] ; then
 fi
 
 vmroot="$(dirname $(basename $1))"
+vmname="$(basename $1)"
 vmconfig="$1"
 [ "$vmroot" = "" -o "$vmroot" = "." ] && vmroot="$(pwd)"
 
@@ -396,8 +397,11 @@ if [ "$vnc_screen" != "" ] ; then
 	echo "VNC screen $vnc_screen"
 fi
 
+baseopts="-name guest=$vmname,debug-threads=on"
+
 if echo $@ | grep -wq -- "--background\|-b" ; then
 	cmd="$need_sudo $qemu
+		$baseopts
 		-M $platform $accel
 		-cpu $cpumodel
 		-smp $vcpus
@@ -407,6 +411,7 @@ if echo $@ | grep -wq -- "--background\|-b" ; then
 	nohup $debug $cmd $extra_opts 2>/dev/null 1>/dev/null &
 else
 	cmd="$need_sudo $(which $qemu)
+		$baseopts
 		-M $platform $accel
 		-cpu $cpumodel
 		-smp $vcpus
