@@ -107,7 +107,7 @@ esac
 [ "$cpumodel" = "" ] && cpumodel="$vcpumodel"
 
 qemu="qemu-system-$vm_arch"
-if ! which $qemu ; then
+if ! which $qemu 2>/dev/null 1>/dev/null ; then
 	if [ "$host_arch" = "$vm_arch" -a "$host_arch" = "x86_64" ] ; then
 		for qemu in /usr/libexec/qemu-kvm /usr/libexec/qemu-kvm-ev UNKNOWN ; do
 			if [ -x "$qemu" ] ; then
@@ -126,6 +126,9 @@ if ! which $qemu ; then
 		exit 1
 	fi
 fi
+
+echo "Using QEMU binary $qemu"
+
 share_files="$(dirname $(which $qemu))/../share"
 
 # QEMU can be in /usr with /bin -> /usr/bin
