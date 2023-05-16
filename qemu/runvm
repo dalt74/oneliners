@@ -84,8 +84,8 @@ fi
 case "$vm_arch" in
 x86_64)
 	platform="q35"
-	[ "$gui_video" = "" ] && gui_video="vmware-svga"
-	[ "$vnc_video" = "" ] && vnc_video="vmware-svga"
+	[ "$gui_video" = "" ] && gui_video="VGA"
+	[ "$vnc_video" = "" ] && vnc_video="VGA"
 	;;
 aarch64)
 	if [ "$host_os" = "Darwin" -a "$host_arch" = "aarch64" -a "$vm_arch" = "aarch64" -a "$emulated" != "yes" ] ; then
@@ -135,19 +135,21 @@ share_files="$(dirname $(which $qemu))/../share"
 # Handle here /bin location with care
 [ "$share_files" = "/bin/../share" ] && share_files="/usr/share"
 
-arch_efis="$share_files/qemu-efi-$vm_arch/QEMU_EFI.fd
-	$share_files/qemu/edk2-$vm_arch-code.fd"
+arch_efis="$share_files/qemu/edk2-$vm_arch-code.fd"
 
-global_efis="$share_files/qemu-efi/QEMU_EFI.fd
+global_efis="
+	$share_files/qemu-efi/QEMU_EFI.fd
 	$share_files/edk2/ovmf/OVMF_CODE.fd
-	$share_files/qemu/OVMF.fd"
+	$share_files/qemu/OVMF.fd
+	$share_files/qemu-efi-$vm_arch/QEMU_EFI.fd
+"
 
 if [ "$vm_arch" != "x86_64" -o "$legacy_bios" != "yes" ] ; then
 	for global_efi in $global_efis ; do
 		[ -e "$global_efi" ] && break
 	done
 
-	if [ "$vm_arch" = "x86_64" -a ! -e "$global_efi" ] ; then
+	if [ ! -e "$global_efi" ] ; then
 		for global_efi in $arch_efis ; do
 			[ -e "$global_efi" ] && break
 		done
@@ -155,7 +157,7 @@ if [ "$vm_arch" != "x86_64" -o "$legacy_bios" != "yes" ] ; then
 
 	if [ "$efi" = "" -a ! -e "$global_efi" ] ; then
 		echo "EFI path is not set with efi=... and none of" 1>&2
-		for f in $arch_efis $global_efis ; do
+		for f in $global_efis $arch_efis ; do
 			echo "   $f" 1>&2
 		done
 		echo "was found" 1>&2
