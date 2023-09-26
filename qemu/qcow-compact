@@ -1,0 +1,48 @@
+#!/bin/bash
+if [ "$1" = "" ] ; then
+    echo "Usage: $0 <iimage-file>"
+    exit 1
+fi
+
+tmpfile="tmp-$$-$1"
+backupfile="bak-$$-$1"
+echo "Compacting $1 via $tmpfile"
+
+if [ -e "$tmpfile" ] ; then
+	echo "Temporary file $tmpfile already exists, aborting"
+	exit 1
+fi
+
+if [ -e "$backupfile" ] ; then
+	echo "Temporary file $backupfile already exists, aborting"
+	exit 1
+fi
+
+echo "Performing data copy ..."
+
+if ! qemu-img convert -f qcow2 -O qcow2 "$1" "$tmpfile" -o preallocation=off ; then
+	echo "Failed copy \"$1\" to \"$tmpfile\", aborting"
+	rm -f "$tmpfile"
+	exit 1
+else
+	echo "Success"
+fi
+
+echo "Creating backup"
+if ! mv "$1" "$backupfile" ; then
+	echo "Failed rename \"$1\" -> \"$backupfile\""
+	exit 1
+fi
+
+echo "Replacing original"
+if ! mv "$tmpfile" "$1" ; then
+	echo "Failed to rename \"$tmpfile\" -> \"$1\", reverting ..."
+	mv -f "$backupfile" "$1" && echo Reverted || echo Revert failed
+	exit 1
+fi
+
+echo "Removing backup"
+if ! rm -f "$backupfile" ; then
+	echo "Failed to remove \"$backupfile\""
+	exit 1
+fi
