@@ -200,3 +200,13 @@ port1_portname="port1"
 # По умолчанию "$confdir/.%vmname-serial-%portname"
 #
 port1_sockpath="$confdir/.config.sample-serial-port1"
+
+#
+# monitor_socket=auto
+# monitor_socket=off
+#
+# monitor_socket=unix
+# monitor_path=/some/path/to/mon-socket
+#
+# monitor_socket=socket,host=172.0.0.1,port=3000,server,nowait
+#

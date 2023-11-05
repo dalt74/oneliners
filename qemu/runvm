@@ -11,6 +11,8 @@ legacy_bios=no
 vnc_screen=1
 redirect_host_port=3001
 redirect_vm_port=22
+monitor_socket=auto
+runvm_dir="/tmp/$USER-runvm"
 
 #
 # Default disks, networks and devices
@@ -404,6 +406,23 @@ fi
 
 baseopts="-name guest=$vmname,debug-threads=on"
 
+if [ "$monitor_socket" = "auto" ] ; then
+	mon_opts="-monitor unix:$runvm_dir/$vmname,server,nowait"
+elif [ "$monitor_socket" = "none" -o "$monitor_soscket" = "disabled" -o "$monitor_socket" = "off" ] ; then
+	mon_opts=""
+elif [ "$monitor_socket" = "unix" -a "$monitor_path" != "" ] ; then
+	mon_opts="-monitor unix:$monitor_path,server,nowait"
+else
+	mon_opts="-monitor $monitor_socket"
+fi
+
+if [ ! -d "$runvm_dir" ] ; then
+	if ! mkdir "$runvm_dir" ; then
+		echo "Unable to create directory $runvm_dir"
+		exit 1
+	fi
+fi
+
 if echo $@ | grep -wq -- "--background\|-b" ; then
 	cmd="$need_sudo $qemu
 		$baseopts
@@ -412,7 +431,7 @@ if echo $@ | grep -wq -- "--background\|-b" ; then
 		-smp $vcpus
 		-m $ram
 		-rtc base=localtime,clock=host
-		$efi_opts $diskopts $netopts $serialopts $ui_opts $extras"
+		$efi_opts $diskopts $netopts $serialopts $ui_opts $mon_opts $extras"
 	nohup $debug $cmd $extra_opts 2>/dev/null 1>/dev/null &
 else
 	cmd="$need_sudo $(which $qemu)
@@ -422,6 +441,6 @@ else
 		-smp $vcpus
 		-m $ram
 		-rtc base=localtime,clock=host
-		$efi_opts $diskopts $netopts $serialopts $ui_opts $extras"
+		$efi_opts $diskopts $netopts $serialopts $ui_opts $mon_opts $extras"
 	exec $debug $cmd $extra_opts
 fi
