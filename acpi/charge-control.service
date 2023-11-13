@@ -1,0 +1,11 @@
+[Unit]
+Description=Set battery charge thresholds
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/sysconfig/charge-control
+ExecStart=/usr/local/bin/set-charge-control
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

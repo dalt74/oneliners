@@ -1,0 +1,29 @@
+#!/bin/bash
+
+function fatal() {
+	echo "Fatal: $@"
+	exit 1
+}
+
+if [ "$1" = "install" ] ; then
+	mkdir -p /etc/sysconfig || fatal "Failed to access /etc/sysconfig"
+	if [ -f /etc/sysconfig/charge-control ] ; then
+		echo "/etc/sysconfig/charge-control exists, skipped"
+	else
+		cp charge-control /etc/sysconfig/charge-control || fatal "Error copy config file"
+	fi
+	cp -f set-charge-control /usr/local/bin || fatal "Error copy executable"
+	cp -f charge-control.service /usr/lib/systemd/system || fatal "Error copy service file"
+	systemctl daemon-reload
+	systemctl restart charge-control
+elif [ "$1" = "uninstall" ] ; then
+	systemctl disable charge-control
+	systemctl stop charge-control
+	rm -f /usr/local/set-charge-control
+	rm -f /etc/sysconfig/charge-control
+	rm -f /usr/lib/systemd/system/charge-control.service
+	systemctl daemon-reload
+else
+	echo "Usage: $0 install | uninstall"
+	exit 1
+fi

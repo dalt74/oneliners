@@ -1,0 +1,52 @@
+#!/bin/bash
+
+function usage() {
+	echo "Usage: $0 [ <start_at> <finish_at> ]"
+	echo "Env vars: <start_at> from CHARGE_LOWER_LIMIT"
+	echo "          <finish_at> from CHARGE_UPPER_LIMIT"
+	echo "Thresholds must be in [10 ... 100] range"
+	exit 1
+}
+
+sysfs_entry="$(find /sys/devices | grep charge_control_thresholds | head -n 1)"
+
+if [ "$sysfs_entry" = "" ] ; then
+	echo "No SYSFS charge_control_thresholds found, exiting"
+	exit 1
+fi
+
+if [ ! -f "$sysfs_entry" ] ; then
+	echo "SYSFS entry '$sysfs_entry' is not a file"
+	exit 1
+fi
+
+if [ "$CHARGE_UPPER_LIMIT" = "" -o "$CHARGE_LOWER_LIMIT" = "" ] ; then
+	if [ "$2" != "" ] ; then
+		CHARGE_LOWER_LIMIT="$1"
+		CHARGE_UPPER_LIMIT="$2"
+	elif [ "$1" != "" ] ; then
+		echo "Empty upper limit via cmdline"
+		usage
+	fi
+
+	if [ "$CHARGE_UPPER_LIMIT" = "" ] ; then
+		echo "Empty upper limit"
+		usage
+	fi
+
+	if [ "$CHARGE_LOWER_LIMIT" = "" ] ; then
+		echo "Empty lower limit"
+		usage
+	fi
+fi
+
+for v in "$CHARGE_LOWER_LIMIT" "$CHARGE_UPPER_LIMIT" ; do
+	if [ "$v" -ge "10" ] ; then
+		if [ "$v" -le 100 ] ; then
+			continue
+		fi
+	fi
+	usage
+done
+
+echo $CHARGE_LOWER_LIMIT $CHARGE_UPPER_LIMIT > "$sysfs_entry"
