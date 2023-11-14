@@ -4,7 +4,7 @@ function usage() {
 	echo "Usage: $0 [ <start_at> <finish_at> ]"
 	echo "Env vars: <start_at> from CHARGE_LOWER_LIMIT"
 	echo "          <finish_at> from CHARGE_UPPER_LIMIT"
-	echo "Thresholds must be in [10 ... 100] range"
+	echo "Thresholds must be in [0 ... 100] range"
 	exit 1
 }
 
@@ -41,12 +41,16 @@ if [ "$CHARGE_UPPER_LIMIT" = "" -o "$CHARGE_LOWER_LIMIT" = "" ] ; then
 fi
 
 for v in "$CHARGE_LOWER_LIMIT" "$CHARGE_UPPER_LIMIT" ; do
-	if [ "$v" -ge "10" ] ; then
+	if [ "$v" -ge "0" ] ; then
 		if [ "$v" -le 100 ] ; then
 			continue
 		fi
 	fi
 	usage
 done
+
+if [ "$CHARGE_LOWER_LIMIT" -ge "$CHARGE_UPPER_LIMIT" ] ; then
+	usage
+fi
 
 echo $CHARGE_LOWER_LIMIT $CHARGE_UPPER_LIMIT > "$sysfs_entry"
