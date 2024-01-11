@@ -9,6 +9,12 @@ function log() {
 	echo "$@" 1>&2
 }
 
+function firstof() {
+	for f in $@ ; do
+		if [ -f $f ] ; then echo $f; break; fi
+	done
+}
+
 #
 # Default VM opts
 #
@@ -126,7 +132,6 @@ if ! which $qemu 2>/dev/null 1>/dev/null ; then
 		if [ "$qemu" = "UNKNOWN" ] ; then
 			fatal "Unable to find qemu-system-$vm_arch nor qemu-kvm nor qemu-kvm-ev"
 		fi
-		redhat_qemu="yes"
 		[ "$gui_video" = "vmware-svga" ] && gui_video="VGA"
 		[ "$vnc_video" = "vmware-svga" ] && vnc_video="VGA"
 	else
@@ -146,16 +151,16 @@ fw_status="broken"
 if [ "$host_os" = "Linux" ] ; then
 	if [ "$legacy_bios" != "yes" ] ; then
 		if [ "$vm_arch" = "aarch64" ] ; then
-			efi_code="$share_files/edk2/aarch64/QEMU_EFI-pflash.raw"
+			[ "$efi_code" == "" ] && efi_code="$share_files/edk2/aarch64/QEMU_EFI-pflash.raw"
 			vars_file="$share_files/edk2/aarch64/vars-template-pflash.raw"
 			fw_status=require
 		elif [ "$vm_arch" = "arm" ] ; then
-			efi_code="$share_files/edk2/arm/QEMU_EFI-pflash.raw"
+			[ "$efi_code" == "" ] && efi_code="$share_files/edk2/arm/QEMU_EFI-pflash.raw"
 			vars_file="$share_files/edk2/arm/vars-template-pflash.raw"
 			fw_status=require
 		elif [ "$vm_arch" = "x86_64" -o "$vm_arch" = "i386" ] ; then
-			efi_code="$share_files/edk2/ovmv/OVMF_CODE.fd"
-			vars_file="$share_files/edk2/ovmv/OVMF_VARS.fd"
+			[ "$efi_code" == "" ] && efi_code="$share_files/edk2/ovmf/OVMF_CODE.fd"
+			vars_file="$share_files/edk2/ovmf/OVMF_VARS.fd"
 			fw_status=require
 		else
 			fatal "EFI unsupported for $vm_arch on $host_os"
@@ -167,19 +172,19 @@ if [ "$host_os" = "Linux" ] ; then
 elif [ "$host_os" = "Darwin" ] ; then
 	if [ "$legacy_bios" != "yes" ] ; then
 		if [ "$vm_arch" = "aarch64" ] ; then
-			efi_code="$share_files/qemu/edk2-aarch64-code.fd"
+			[ "$efi_code" == "" ] && efi_code="$share_files/qemu/edk2-aarch64-code.fd"
 			vars_file="$share_files/qemu/edk2-arm-vars.fd"
 			fw_status=require
 		elif [ "$vm_arch" = "arm" ] ; then
-			efi_code="$share_files/qemu/edk2-arm-code.fd"
+			[ "$efi_code" == "" ] && efi_code="$share_files/qemu/edk2-arm-code.fd"
 			vars_file="$share_files/qemu/edk2-arm-vars.fd"
 			fw_status=require
 		elif [ "$vm_arch" = "x86_64" ] ; then
-			efi_code="$share_files/qemu/edk2-x86_64-code.fd"
+			[ "$efi_code" == "" ] && efi_code="$share_files/qemu/edk2-x86_64-code.fd"
 			vars_file="$share_files/qemu/edk2-i386-vars.fd"
 			fw_status=require
 		elif [ "$vm_arch" = "i386" ] ; then
-			efi_code="$share_files/qemu/edk2-i386-code.fd"
+			[ "$efi_code" == "" ] && efi_code="$share_files/qemu/edk2-i386-code.fd"
 			vars_file="$share_files/qemu/edk2-i386-vars.fd"
 			fw_status=require
 		else
@@ -194,7 +199,8 @@ fi
 if [ "$fw_status" = "ignore" ] ; then
 	log "No special firmware required"
 elif [ "$fw_status" = "require" ] ; then
-	log "Will use EFI code from $efi_code"
+	log "Will use EFI code from $efi_code READ-ONLY"
+	[ ! -f "$efi_code" ] && fatal "EFI boot code $efi_code not found"
 	efi_opts="-drive if=pflash,format=raw,readonly=on,file=$efi_code"
 	if [ "$private_efi_vars" = "yes" ] ; then
 		vars_readonly=off
@@ -203,10 +209,12 @@ elif [ "$fw_status" = "require" ] ; then
 		fi
 		log "Will use EFI vars $efi_vars READ-WRITE"
 		if [ ! -f "$efi_vars" ] ; then
+			[ ! -f "$vars_file" ] && fatal "EFI vars file $vars_file not found on VM setup"
 			cp "$vars_file" "$efi_vars" || fatal "Failed to instantiate private vars form $vars_file to $efi_vars"
 			log "Private vars $efi_vars built from $vars_file"
 		fi
 	else
+		[ ! -f "$vars_file" ] && fatal "EFI vars file $vars_file not found on VM check"
 		vars_readonly=on
 		efi_vars="$vars_file"
 		log "Will use EFI vars $efi_vars READ-ONLY"
