@@ -1,8 +1,10 @@
 #!/bin/python3
 
 from typing import Any
+from typing import List
 from typing import Optional
 
+import signal
 import socket as sock
 import sys
 import threading as th
@@ -14,6 +16,27 @@ def noerror(func: Any, *args: Any) -> None:
         func(*args)
     except Exception:
         pass
+
+
+class Finalizer:
+    def __init__(self) -> None:
+        self.items: List[sock.socket] = list()
+        self.lock = th.Lock()
+
+    def put(self, s: sock.socket) -> None:
+        with self.lock:
+            if s not in self.items:
+                self.items.append(s)
+
+    def remove(self, s: sock.socket) -> None:
+        with self.lock:
+            self.items = [i for i in self.items if i != s]
+
+    def fire_all(self) -> None:
+        with self.lock:
+            for i in self.items:
+                noerror(i.shutdown, sock.SHUT_RDWR)
+                noerror(i.close)
 
 
 def report(err: Exception, fmt: str, *args: Any) -> None:
@@ -84,24 +107,34 @@ def transform(data: bytes, pattern: bytes, offset: int) -> bytes:
 
 
 def streamcopy(
+    finalizer: Finalizer,
     session_controller: CancelToken,
     src: sock.socket, dst: sock.socket,
-    pattern: bytes
+    pattern: bytes,
+    name: str = "any"
 ) -> None:
     offset = 0
+    finalizer.put(src)
+    finalizer.put(dst)
     while session_controller.is_not_set:
         try:
-            data = src.recv(1)
+            try:
+                data = src.recv(1)
+            except OSError:
+                break
             if data is None or len(data) == 0:
                 break
             data = transform(data, pattern, offset)
             dst.send(data)
             offset += 1
-            data = src.recv(8192, sock.MSG_DONTWAIT)
+            try:
+                data = src.recv(8192, sock.MSG_DONTWAIT)
+            except BlockingIOError:
+                data = None
             if data is not None:
                 if len(data) > 0:
                     data = transform(data, pattern, offset)
-                    dst.send(data)
+                    dst.send(data, sock.MSG_WAITALL)
                     offset += len(data)
         except Exception as err:
             report(err, "copy error")
@@ -111,9 +144,12 @@ def streamcopy(
     noerror(dst.shutdown, sock.SHUT_RDWR)
     noerror(src.close)
     noerror(dst.close)
+    finalizer.remove(src)
+    finalizer.remove(dst)
 
 
 def start_session(
+    finalizer: Finalizer,
     session_controller: CancelToken,
     src: sock.socket,
     dest_addr: PortAddress,
@@ -129,33 +165,40 @@ def start_session(
         return
     th.Thread(
         target=lambda:\
-            streamcopy(session_controller, src, dest, pattern)
+            streamcopy(finalizer, session_controller, src, dest, pattern)
     ).start()
     th.Thread(
         target=lambda:\
-            streamcopy(session_controller, dest, src, pattern)
+            streamcopy(finalizer, session_controller, dest, src, pattern)
     ).start()
 
 
 def listener(
+    finalizer: Finalizer,
     server_controller: CancelToken,
     listen_on: PortAddress, send_to: PortAddress,
     pattern: bytes
 ) -> None:
     server_socket = listen_on.open_server()
+    finalizer.put(server_socket)
     while server_controller.is_not_set:
         try:
             client, ret_addr = server_socket.accept()
             print("Got client from %s" % (ret_addr,))
+        except OSError:
+            print("Exiting accept loop")
+            server_controller.set()
         except Exception as err:
             report(err, "Error accepting")
             server_controller.set()
-            continue
-        session_controller = CancelToken(server_controller.parent)
-        th.Thread(
-            target=lambda:\
-                start_session(session_controller, client, send_to, pattern)
-        ).start()
+        else:
+            session_controller = CancelToken(server_controller.parent)
+            th.Thread(
+                target=lambda:\
+                    start_session(finalizer, session_controller, client, send_to, pattern)
+            ).start()
+    server_controller.set()
+    finalizer.remove(server_socket)
 
 
 def usage() -> None:
@@ -186,7 +229,16 @@ if len(tokens) not in [3,4]:
     sys.exit(1)
 
 try:
+    finalizer = Finalizer()
+
+    def stop_handler(*args, **kwargs) -> None:
+        finalizer.fire_all()
+
+    signal.signal(signal.SIGINT, stop_handler)
+    signal.signal(signal.SIGTERM, stop_handler)
+
     listener(
+        finalizer,
         server_controller,
         PortAddress("127.0.0.1" if len(tokens) == 3 else tokens[0], int(tokens[-3])),
         PortAddress(tokens[-2], int(tokens[-1])),
