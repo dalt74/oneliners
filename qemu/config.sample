@@ -23,7 +23,7 @@ ram=3G
 #
 # Количество виртуальных процессоров
 #
-# vcpus=2
+vcpus=2
 
 #
 # Порты для проброса в режиме usernet (user-mode networking)
