@@ -61,8 +61,11 @@ class PortAddress:
 
     def open_server(self) -> sock.socket:
         ret = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
-        ret.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEADDR, 1)
-        ret.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEPORT, 1)
+        #
+        # It's useful for debug, not for the production
+        #
+        # ret.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEADDR, 1)
+        # ret.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEPORT, 1)
         ret.bind((self.addr, self.port))
         ret.listen(10)
         return ret
@@ -119,6 +122,7 @@ def streamcopy(
     while session_controller.is_not_set:
         try:
             try:
+                src.setblocking(True)
                 data = src.recv(1)
             except OSError:
                 break
@@ -128,13 +132,14 @@ def streamcopy(
             dst.send(data)
             offset += 1
             try:
-                data = src.recv(8192, sock.MSG_DONTWAIT)
+                src.setblocking(False)
+                data = src.recv(8192)
             except BlockingIOError:
                 data = None
             if data is not None:
                 if len(data) > 0:
                     data = transform(data, pattern, offset)
-                    dst.send(data, sock.MSG_WAITALL)
+                    dst.send(data)
                     offset += len(data)
         except Exception as err:
             report(err, "copy error")
