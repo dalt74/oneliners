@@ -111,8 +111,8 @@ aarch64)
 	else
 		platform="virt"
 	fi
-	[ "$gui_video" = "" ] && gui_video="ramfb"
-	[ "$vnc_video" = "" ] && vnc_video="ramfb"
+	[ "$gui_video" = "" ] && gui_video="virtio-gpu-pci"
+	[ "$vnc_video" = "" ] && vnc_video="virtio-gpu-pci"
 	;;
 *)
 	fatal "Unsupported VM arch: $vm_arch"
