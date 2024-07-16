@@ -224,6 +224,13 @@ else
 	fatal "Unknown firmware setup for $vm_arch on $host_os"
 fi
 
+scsi_opts=""
+if [ "$scsi_controller" = "yes" ] ; then
+	scsi_controller="scsi0"
+	[ "$scsi_controller_name" != "" ] && scsi_controller="$scssi_controller_name"
+	scsi_opts="-device virtio-scsi-pci,id=$scsi_controller"
+fi
+
 diskopts=""
 
 for disk in $storages ; do
@@ -251,6 +258,12 @@ for disk in $storages ; do
 	v="$disk"_media
 	media="${!v}"
 
+	v="$disk"_bus
+	diskbus="${!v}"
+
+	v="$disk"_extraopts
+	diskextraopts="${!v}"
+
 	v="$disk"_type
 	type="${!v}"
 	[ "$type" = "" ] && type="virtio-blk"
@@ -272,6 +285,8 @@ for disk in $storages ; do
 	[ "$discard" != "" ] && diskopts="$diskopts,discard=$discard"
 	[ "$media" != "" ] && diskopts="$diskopts,media=$media"
 	[ "$readonly" != "" ] && diskopts="$diskopts,readonly=$readonly"
+	[ "$diskbus" != "" ] && diskopts="$diskopts,bus=$diskbus"
+	[ "$diskextraopts" != "" ] && diskopts="$diskopts,$diskextraopts"
 done
 
 netopts=""
@@ -452,7 +467,7 @@ if echo $@ | grep -wq -- "--background\|-b" ; then
 		-smp $vcpus
 		-m $ram
 		-rtc base=localtime,clock=host
-		$efi_opts $diskopts $netopts $serialopts $ui_opts $mon_opts $extras"
+		$efi_opts $scsi_opts $diskopts $netopts $serialopts $ui_opts $mon_opts $extras"
 	nohup $debug $cmd $extra_opts 2>/dev/null 1>/dev/null &
 else
 	cmd="$need_sudo $(which $qemu)
@@ -462,6 +477,6 @@ else
 		-smp $vcpus
 		-m $ram
 		-rtc base=localtime,clock=host
-		$efi_opts $diskopts $netopts $serialopts $ui_opts $mon_opts $extras"
+		$efi_opts $scsi_opts $diskopts $netopts $serialopts $ui_opts $mon_opts $extras"
 	exec $debug $cmd $extra_opts
 fi

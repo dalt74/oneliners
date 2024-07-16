@@ -71,6 +71,11 @@ legacy_bios=no
 #
 
 #
+# Автоматическая актвиация SCSI
+# scsi_controller=yes            # По умолчанию "no"
+# scsi_contoller_name="scsi0"    # Значение по умолчанию
+
+#
 # Подключенные диски. Для каждого диска позже определятся параметры
 # Туту перечислены три диска - boot_disk, data_disk и cdrom
 #
@@ -86,7 +91,7 @@ storages="boot_disk data_disk cdrom"
 # ***_format - формат, raw|vmdk|vhd|qcow2
 # ***_cache - кэш, none|writeback|writethrough
 # ***_bootindex - приоритет загрузки (int)
-# ***_type - типа диска, virtio-blk|nvme|ide-cd
+# ***_type - типа диска, virtio-blk|nvme|ide-cd,scsi-hd,scsi-cd
 # ***_dicard - реализация trim, discard|ignore
 # ***_media - тип устройтва, disk|cdrom
 # ***_removable - отключаемое устройство, on|off
@@ -98,13 +103,15 @@ boot_disk_cache=none
 boot_disk_bootindex=0
 boot_disk_discard=unmap
 boot_disk_type=virtio-blk
+boot_disk_bus=somebusname
 
 #
-# Если каталог не указан - ищется файл в каталоге где лижит конфиг ВМ
+# Если каталог не указан - ищется файл в каталоге где лежит конфиг ВМ
 #
 data_disk_file="vdb.qcow2"
 data_disk_format=qcow2
 data_disk_type=virtio-blk
+data_disk_extraopts="file.locking=0,feature=value"
 
 #
 # Абсолютные пути тоже поддерживаются
