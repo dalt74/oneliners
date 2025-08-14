@@ -1,4 +1,5 @@
 #!/bin/bash
+cd
 pidfile="/tmp/.vpn-$1-pid"
 if [ -f "$pidfile" ] ; then
     echo "VPN $1 pidfile found, exiting"
