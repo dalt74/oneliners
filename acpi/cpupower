@@ -1,0 +1,62 @@
+#!/bin/bash
+echo +cpuset > /sys/fs/cgroup/cgroup.subtree_control
+if [ "$1" = "single" ] ; then
+	for n in $(seq 1 21) ; do
+		echo offine >/sys/devices/system/cpu/cpu$n/online
+	done
+	echo 0 > /sys/fs/cgroup/user.slice/cpuset.cpus
+	echo 0 > /sys/fs/cgroup/system.slice/cpuset.cpus
+elif [ "$1" = "tiny" ] ; then
+	for n in $(seq 20 21) ; do
+		echo onine >/sys/devices/system/cpu/cpu$n/online
+	done
+	for n in $(seq 1 19) ; do
+		echo offine >/sys/devices/system/cpu/cpu$n/online
+	done
+	echo 20-21 > /sys/fs/cgroup/user.slice/cpuset.cpus
+	echo 20-21 > /sys/fs/cgroup/system.slice/cpuset.cpus
+elif [ "$1" = "low" ] ; then
+	for n in $(seq 12 15) ; do
+		echo online >/sys/devices/system/cpu/cpu$n/online
+	done
+	for n in $(seq 1 11) $(seq 16 19) 20 21 ; do
+		echo offline >/sys/devices/system/cpu/cpu$n/online
+	done
+	echo 12-15 > /sys/fs/cgroup/user.slice/cpuset.cpus
+	echo 12-15 > /sys/fs/cgroup/system.slice/cpuset.cpus
+elif [ "$1" = "medium" ] ; then
+	for n in $(seq 1 3) 20 21 ; do
+		echo online >/sys/devices/system/cpu/cpu$n/online
+	done
+	for n in $(seq 4 19) ; do
+		echo offline >/sys/devices/system/cpu/cpu$n/online
+	done
+	echo 0-3 > /sys/fs/cgroup/user.slice/cpuset.cpus
+	echo 20-21 > /sys/fs/cgroup/system.slice/cpuset.cpus
+elif [ "$1" = "high" ] ; then
+	for n in 2 4 6 8 10 ; do
+		echo online >/sys/devices/system/cpu/cpu$n/online
+	done
+	for n in 1 3 5 7 9 11 $(seq 12 21) ; do
+		echo offline >/sys/devices/system/cpu/cpu$n/online
+	done
+	echo 0-11 > /sys/fs/cgroup/user.slice/cpuset.cpus
+	echo 0-11 > /sys/fs/cgroup/system.slice/cpuset.cpus
+elif [ "$1" = "top" ] ; then
+	for n in $(seq 1 11) ; do
+		echo online >/sys/devices/system/cpu/cpu$n/online
+	done
+	for n in $(seq 12 21) ; do
+		echo offline >/sys/devices/system/cpu/cpu$n/online
+	done
+	echo 0-11 > /sys/fs/cgroup/user.slice/cpuset.cpus
+	echo 0-11 > /sys/fs/cgroup/system.slice/cpuset.cpus
+elif [ "$1" = "full" ] ; then
+	for n in $(seq 1 21) ; do
+		echo online >/sys/devices/system/cpu/cpu$n/online
+	done
+	echo 0-21 > /sys/fs/cgroup/user.slice/cpuset.cpus
+	echo 0-21 > /sys/fs/cgroup/system.slice/cpuset.cpus
+else
+	echo "Usage: $0 single | tiny | low | medium | high | top | full"
+fi
