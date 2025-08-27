@@ -1,0 +1,5 @@
+#!/bin/bash
+power=$(head -n 1 /sys/class/power_supply/BAT0/current_now)
+voltage=$(head -n 1 /sys/class/power_supply/BAT0/voltage_now)
+energy=$(echo $power "*" $voltage / 1000000000000 | bc)
+echo Consumption $energy"W"
