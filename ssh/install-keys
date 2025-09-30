@@ -13,7 +13,7 @@ for keyfile in ~/.authorized_keys.d/* ; do
 done
 for url in $@ ; do
     echo "Fetching $url" 1>&2
-    new_remote_keys="$(curl -s --fail-with-body "$url")" || fatal Fetch "$1" failed
+    new_remote_keys="$(curl -s --fail "$url")" || fatal Fetch "$1" failed
     remote_keys="$(echo "$remote_keys" ; echo "$new_remote_keys")"
 done
 total_keys="$(echo "$local_keys" ; echo "$remote_keys" | sort | uniq | grep -v "^$")"
