@@ -1,0 +1,24 @@
+#!/bin/bash
+function fatal() {
+    echo "$@" 1>&2
+    exit 1
+}
+
+local_keys=""
+for keyfile in ~/.authorized_keys.d/* ; do
+    if [ -f "$keyfile" ] ; then
+        echo "Importing $keyfile"
+        local_keys="$(echo $local_keys ; cat "$keyfile" | grep -v "^$")"
+    fi
+done
+for url in $@ ; do
+    echo "Fetching $url" 1>&2
+    new_remote_keys="$(curl -s --fail-with-body "$url")" || fatal Fetch "$1" failed
+    remote_keys="$(echo "$remote_keys" ; echo "$new_remote_keys")"
+done
+total_keys="$(echo "$local_keys" ; echo "$remote_keys" | sort | uniq | grep -v "^$")"
+mkdir -p ~/.ssh || fatal Failed to create ~/.ssh
+chmod 700 ~/.ssh || fatal Failed to chmod ~/.ssh
+echo "$total_keys" | grep -v "^$" > ~/.ssh/new_authorized_keys || fatal Failed to create ~/.ssh/new_authorized_keys
+chmod 600 ~/.ssh/new_authorized_keys || fatal Failed to chmod ~/.ssh/new_authorized_keys
+mv -f ~/.ssh/new_authorized_keys ~/.ssh/authorized_keys || fatal Error moving ~/.ssh/new_authorized_keys into ~/.ssh/authorized_keys
