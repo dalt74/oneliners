@@ -53,22 +53,27 @@ if [ "$2" == "" ] ; then
 	exit 1
 fi
 
-cfname="$1"
+cfpath="$1"
 
-[ -e "$cfname" ] && cfname="$(realpath $cfname)" || fatal "Path $cfname not found"
+[ -e "$cfpath" ] && cfname="$(realpath $cfpath)" || fatal "Path $cfpath not found"
 
-if [ ! -f "$cfname" -a -f "$cfname/config" ] ; then
-	vmconfig="$cfname/config"
-	vmroot="$cfname"
-	vmname="$(basename $cfname)"
+if [ -f "$cfpath/config" ] ; then
+	vmconfig="$cfpath/config"
+	vmroot="$cfpath"
 	confdir="$vmroot"
-elif [ -f "$cfname" ] ; then
-	vmconfig="$1"
-	vmroot="$(dirname $cfname)"
-	vmname="$(basename $(dirname $cfname))"
+	vmname="$(basename $cfpath)"
+elif [ -f "$cfpath" ] ; then
+	vmconfig="$cfpath"
+	confname="$(basename $vmconfig)"
+	vmroot="$(dirname $cfpath)"
 	confdir="$vmroot"
+	if [ "$confname" = "config" ] ; then
+		vmname="$(basename $(dirname $cfpath))"
+	else
+		vmname="$confname"
+	fi
 else
-	log Unable to handle VM path "$1"
+	fatal Unable to handle VM path "$1"
 fi
 
 [ "$vmroot" = "" -o "$vmroot" = "." ] && vmroot="$(pwd)"
