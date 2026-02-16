@@ -53,9 +53,16 @@ if [ "$2" == "" ] ; then
 	exit 1
 fi
 
-vmroot="$(dirname $(basename $1))"
+cfname="$1"
+if [ ! -f "$cfname" -a -f "$cfname/config" ] ; then
+	cfname="$1/config"
+	vmname="$(basename $1)"
+fi
+
+vmroot="$(dirname $(basename $cfname))"
 vmname="$(basename $1)"
-vmconfig="$1"
+vmconfig="$cfname"
+
 [ "$vmroot" = "" -o "$vmroot" = "." ] && vmroot="$(pwd)"
 
 confdir="$(dirname "$vmconfig")"
