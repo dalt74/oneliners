@@ -124,7 +124,7 @@ x86_64)
 aarch64)
 	if [ "$host_os" = "Darwin" -a "$host_arch" = "aarch64" -a "$vm_arch" = "aarch64" ] ; then
 		# aarch64 on macOS for Apple Silicon with HVF has a limitations
-		platform="virt,highmem=off"
+		platform="virt"
 		[ "$cpumodel" = "" ] && vcpumodel="cortex-a72"
 	else
 		platform="virt"
