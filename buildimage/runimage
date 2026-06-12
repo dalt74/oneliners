@@ -1,9 +1,46 @@
 #!/bin/bash
 
+function usage() {
+	echo "Usage: $0 [ <options> ] <image> [ <cmdargs> ]"
+}
+
 which podman > /dev/null && runner=podman
 which container > /dev/null && runner=container
 which docker > /dev/null && runner=docker
 
 [ "$runner" = "" ] && { echo "None of pdoman, container or docker tool found, aborting" ; exit 1 ; }
 
-$DEBUG $runner run --rm -it -v $(pwd):/current:ro $1
+opts=""
+image=""
+cmdopts=""
+while [ "$1" != "" ] ; do
+	if [ "$1" == "--ro" -o "$1" == "--rw" ] ; then
+		mode=$(echo $1 | cut -b 3-)
+		shift
+		virtual=$(echo $1 | cut -f 1 -d =)
+		real=$(echo $1 | cut -f 2 -d =)
+		[ -d "$real" ] || { echo Directory \"$real\" not found ; exit 1; }
+		opts="$opts -v $real:$virtual"
+		[ "$mode" == "ro" ] && opts="$opts:ro"
+	elif [ "$1" == "--hostname" ] ; then
+		shift
+		opts="$opts --hostname $1"
+	elif [ "$1" == "--help" -o "$1" == "-?" ] ; then
+		usage
+		exit 1
+	elif echo $1 | grep -q ^- ; then
+		if [ "$image" == "" ] ; then
+			usage
+			exit 1
+		else
+			cmdopts="$cmdopts $1"
+		fi
+	elif [ "$image" == "" ] ; then
+		image="$1"
+	else
+		cmdopts="$cmdopts $1"
+	fi
+	shift
+done
+	
+$DEBUG $runner run --rm -it $opts $image $cmdopts

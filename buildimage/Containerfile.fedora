@@ -1,6 +1,6 @@
 FROM fedora:latest
 
-RUN dnf -y update && dnf -y install postgresql-server ansible-core bind python3-boto3 procps-ng net-tools openssh-clients iputils sudo curl wget python3-boto3 make screen
+RUN dnf -y update && dnf -y install postgresql-server ansible-core bind python3-boto3 procps-ng net-tools openssh-clients iputils sudo curl wget python3-boto3 make screen mc
 RUN dnf -y install ansible-core ansible-collection-community-general ansible-collection-ansible-posix
 RUN dnf -y install rpm-build protobuf bind python3-boto3 unzip gcc gcc-c++ openssl-devel postgresql-devel fakeroot git python3-requests dpkg
 RUN dnf -y install grpcurl man

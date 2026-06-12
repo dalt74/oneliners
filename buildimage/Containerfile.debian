@@ -1,7 +1,7 @@
 FROM debian:13
 
 ARG DEBIAN_FRONTEND=noninteractive
-RUN apt -y update && apt -y install iptables-persistent net-tools postgresql bind9 ansible python3-boto3 procps sudo curl wget systemd screen vim gcc g++ make fakeroot git screen unzip
+RUN apt -y update && apt -y install iptables-persistent net-tools postgresql bind9 ansible python3-boto3 procps sudo curl wget systemd screen vim gcc g++ make fakeroot git screen unzip mc
 RUN apt -y install ceph-common librados-dev librbd-dev
 
 # RUN cd / ; wget https://go.dev/dl/go1.24.5.linux-$(uname -m | sed -e s/aarch64/arm64/ -e s/x86_64/amd64/).tar.gz
