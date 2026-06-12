@@ -1,0 +1,25 @@
+FROM quay.io/centos/centos:stream10
+
+RUN dnf -y install epel-release
+RUN dnf -y update && dnf -y install postgresql-server ansible-core bind python3-boto3 procps-ng net-tools openssh-clients iputils sudo curl wget python3-boto3 make screen
+RUN dnf -y install ansible-core ansible-collection-community-general ansible-collection-ansible-posix
+RUN dnf -y install rpm-build protobuf bind python3-boto3 unzip gcc gcc-c++ openssl-devel postgresql-devel fakeroot git python3-requests
+RUN rpm -i https://mirror.yandex.ru/centos-stream/SIGs/10-stream/extras/$(uname -m)/extras-common/Packages/c/centos-release-storage-common-2-2.el10s.noarch.rpm
+RUN rpm -i https://mirror.yandex.ru/centos-stream/SIGs/10-stream/extras/$(uname -m)/extras-common/Packages/c/centos-release-ceph-squid-1.0-2.el10s.noarch.rpm
+RUN /usr/bin/crb enable
+RUN dnf -y install ceph-common librados-devel librbd-devel dpkg
+
+RUN cd / ; wget https://go.dev/dl/go1.25.3.linux-$(uname -m | sed -e s/aarch64/arm64/ -e s/x86_64/amd64/).tar.gz
+RUN cd / ; tar -xvzf go*.tar.gz
+RUN cd / ; wget https://github.com/protocolbuffers/protobuf/releases/download/v33.0/protoc-33.0-linux-$(uname -m | sed -e s/aarch64/aarch_64/ -e s/x86_64/x86_64/).zip
+
+RUN mkdir /protoc
+RUN cd /protoc && unzip /protoc-*.zip
+RUN rm -f /go*.tar.gz /protoc*.zip
+
+ENV PATH=$PATH:/go/bin:/protoc/bin:/root/go/bin
+
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.1
+
+RUN id ceph || { groupadd -g 167 ceph && useradd -r -u 167 -g 167 ceph; }

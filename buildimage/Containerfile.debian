@@ -1,0 +1,22 @@
+FROM debian:13
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt -y update && apt -y install iptables-persistent net-tools postgresql bind9 ansible python3-boto3 procps sudo curl wget systemd screen vim gcc g++ make fakeroot git screen unzip
+RUN apt -y install ceph-common librados-dev librbd-dev
+
+# RUN cd / ; wget https://go.dev/dl/go1.24.5.linux-$(uname -m | sed -e s/aarch64/arm64/ -e s/x86_64/amd64/).tar.gz
+# RUN cd / ; tar -xvzf go*.tar.gz
+# RUN cd / ; wget https://github.com/protocolbuffers/protobuf/releases/download/v32.1/protoc-32.1-linux-$(uname -m | sed -e s/aarch64/aarch_64/ -e s/x86_64/x86_64/).zip
+
+RUN cd / ; wget https://go.dev/dl/go1.25.3.linux-$(uname -m | sed -e s/aarch64/arm64/ -e s/x86_64/amd64/).tar.gz
+RUN cd / ; tar -xvzf go*.tar.gz
+RUN cd / ; wget https://github.com/protocolbuffers/protobuf/releases/download/v33.0/protoc-33.0-linux-$(uname -m | sed -e s/aarch64/aarch_64/ -e s/x86_64/x86_64/).zip
+
+RUN mkdir /protoc
+RUN cd /protoc && unzip /protoc-*.zip
+RUN rm -f /go*.tar.gz /protoc*.zip
+
+ENV PATH=$PATH:/go/bin:/protoc/bin:/root/go/bin
+
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.1
